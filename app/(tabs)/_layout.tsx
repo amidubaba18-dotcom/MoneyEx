@@ -1,70 +1,94 @@
-import { SymbolView } from 'expo-symbols';
-import { Link, Tabs } from 'expo-router';
-import { Platform, Pressable } from 'react-native';
-
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+﻿import React from 'react';
+import { Tabs } from 'expo-router';
+import { Home, BarChart3, Wallet, User } from 'lucide-react-native';
+import { View, StyleSheet } from 'react-native';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
-  return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'chevron.left.forwardslash.chevron.right',
-                android: 'code',
-                web: 'code',
-              }}
-              tintColor={color}
-              size={28}
+    return (
+        <Tabs
+            screenOptions={{
+                headerShown: false,
+                tabBarShowLabel: false,
+                tabBarStyle: styles.tabBar,
+                tabBarItemStyle: styles.tabItem,
+                swipeEnabled: false,
+            }}
+        >
+            <Tabs.Screen
+                name="index"
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                            <Home size={20} color={focused ? '#FFFFFF' : '#9CA3AF'} />
+                        </View>
+                    ),
+                }}
             />
-          ),
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable style={{ marginRight: 15 }}>
-                {({ pressed }) => (
-                  <SymbolView
-                    name={{ ios: 'info.circle', android: 'info', web: 'info' }}
-                    size={25}
-                    tintColor={Colors[colorScheme].text}
-                    style={{ opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="two"
-        options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'chevron.left.forwardslash.chevron.right',
-                android: 'code',
-                web: 'code',
-              }}
-              tintColor={color}
-              size={28}
+            <Tabs.Screen
+                name="budget"
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                            <BarChart3 size={20} color={focused ? '#FFFFFF' : '#9CA3AF'} />
+                        </View>
+                    ),
+                }}
             />
-          ),
-        }}
-      />
-    </Tabs>
-  );
+            <Tabs.Screen
+                name="transactions"
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                            <Wallet size={20} color={focused ? '#FFFFFF' : '#9CA3AF'} />
+                        </View>
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="profile"
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                            <User size={20} color={focused ? '#FFFFFF' : '#9CA3AF'} />
+                        </View>
+                    ),
+                }}
+            />
+            {/* Not shown in the tab bar, still reachable via router.push */}
+            <Tabs.Screen name="notifications" options={{ href: null }} />
+        </Tabs>
+    );
 }
+
+const styles = StyleSheet.create({
+    tabBar: {
+        position: 'absolute',
+        left: 16,
+        right: 16,
+        bottom: 20,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#FFFFFF',
+        borderTopWidth: 0,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+    },
+    tabItem: {
+        height: 64,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    iconWrap: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    iconWrapActive: {
+        backgroundColor: '#111827',
+    },
+});
