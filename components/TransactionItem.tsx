@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import * as Icons from 'lucide-react-native';
 import { TransactionRow } from '../repositories/TransactionRepository';
+import { formatCurrency } from '../utils/formatCurrency';
 
 export function TransactionItem({ transaction }: { transaction: TransactionRow }) {
     const isIncome = transaction.transaction_type === 'income';
@@ -17,7 +18,7 @@ export function TransactionItem({ transaction }: { transaction: TransactionRow }
     return (
         <View style={styles.row}>
             <View style={styles.iconBox}>
-                <IconComp size={18} color="#111827" />
+                <IconComp size={18} color={transaction.category_color || (isIncome ? '#16A34A' : '#EF4444')} />
             </View>
             <View style={styles.info}>
                 <Text style={styles.note} numberOfLines={1}>
@@ -27,8 +28,8 @@ export function TransactionItem({ transaction }: { transaction: TransactionRow }
                     {categoryLabel} · {dateLabel}
                 </Text>
             </View>
-            <Text style={styles.amount}>
-                {isIncome ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+            <Text style={[styles.amount, { color: isIncome ? '#16A34A' : '#EF4444' }]}>
+                {isIncome ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount))}
             </Text>
         </View>
     );
@@ -54,7 +55,7 @@ const styles = StyleSheet.create({
     info: { flex: 1, marginRight: 12 },
     note: {
         fontSize: 15,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#111827',
         marginBottom: 3,
     },
@@ -65,7 +66,7 @@ const styles = StyleSheet.create({
     },
     amount: {
         fontSize: 15,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#111827',
         minWidth: 80,
         textAlign: 'right',

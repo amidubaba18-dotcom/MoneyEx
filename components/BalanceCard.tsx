@@ -14,12 +14,12 @@ export function BalanceCard() {
             transition={{ type: 'timing', duration: 300 }}
         >
             <View style={styles.card}>
-                
+
 
                 <Text style={styles.label}>Current Balance</Text>
                 <Text style={styles.balance}>{formatCurrency(balance)}</Text>
 
-                
+
             </View>
 
             <View style={styles.breakdown}>
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     },
     brand: {
         fontSize: 18,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#FFFFFF',
         letterSpacing: 0.2,
     },
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     },
     label: {
         fontSize: 13,
-        fontWeight: '500',
+        fontWeight: '600',
         color: '#9A9EA6',
         marginBottom: 8,
     },
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     },
     cardNumber: {
         fontSize: 15,
-        fontWeight: '600',
+        fontWeight: '700',
         color: '#C7C9CE',
         letterSpacing: 1,
     },

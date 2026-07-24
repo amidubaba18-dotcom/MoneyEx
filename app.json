@@ -1,34 +1,26 @@
 {
   "expo": {
-    "name": "MoneyEx",
-    "slug": "MoneyEx",
-    "version": "1.0.0",
-    "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#4F46E5"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#4F46E5"
+        "backgroundColor": "#14161B"
       },
-      "package": "com.amidu.MoneyEx"
+      "package": "com.amidu.moneyex"
     },
-    "plugins": [],
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "splash": {
+      "image": "./assets/images/splash-icon.png"
+    },
     "extra": {
       "eas": {
-        "projectId": "20b71b20-7f7c-4153-81e4-919ca1a1018a"
+        "projectId": "d33c9f47-b6b2-46b5-bfb1-1bfeba8742da"
       }
     }
+
+    
   }
+  
 }

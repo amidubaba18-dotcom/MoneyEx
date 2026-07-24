@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     },
     buttonText: {
         fontSize: 14,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#111827',
     },
 });

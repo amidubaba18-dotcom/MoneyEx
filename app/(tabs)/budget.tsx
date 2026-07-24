@@ -1,158 +1,456 @@
-﻿import React, { useMemo } from 'react';
-import { View, ScrollView, Text, StyleSheet, Platform } from 'react-native';
+﻿import React, { useMemo, useState } from 'react';
+import { View, ScrollView, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from 'react-native-paper';
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { useTransactionStore } from '../../store/useTransactionStore';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { useTabBarClearance } from './_layout';
 
-const VictoryPie = Platform.OS !== 'web' ? require('victory-native').VictoryPie : null;
+type PeriodKey = 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth';
 
-function isSameMonth(timestamp: number, compare: Date) {
-    const date = new Date(timestamp);
-    return date.getMonth() === compare.getMonth() && date.getFullYear() === compare.getFullYear();
+const PERIODS: { key: PeriodKey; label: string }[] = [
+    { key: 'thisWeek', label: 'This Week' },
+    { key: 'lastWeek', label: 'Last Week' },
+    { key: 'thisMonth', label: 'This Month' },
+    { key: 'lastMonth', label: 'Last Month' },
+];
+
+const CATEGORY_FALLBACK_COLORS = ['#4ADE80', '#38BDF8', '#A78BFA', '#9CA3AF', '#FBBF24', '#F472B6'];
+
+function startOfDay(d: Date) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-export default function BudgetScreen() {
-    const theme = useTheme();
+function startOfWeek(d: Date) {
+    const s = startOfDay(d);
+    s.setDate(s.getDate() - s.getDay());
+    return s;
+}
+
+function addDays(d: Date, n: number) {
+    const r = new Date(d);
+    r.setDate(r.getDate() + n);
+    return r;
+}
+
+function getPeriodRange(period: PeriodKey, now: Date) {
+    switch (period) {
+        case 'thisWeek': {
+            const start = startOfWeek(now);
+            return { start, end: startOfDay(now) };
+        }
+        case 'lastWeek': {
+            const thisWeekStart = startOfWeek(now);
+            const end = addDays(thisWeekStart, -1);
+            const start = startOfWeek(end);
+            return { start, end };
+        }
+        case 'thisMonth': {
+            const start = new Date(now.getFullYear(), now.getMonth(), 1);
+            return { start, end: startOfDay(now) };
+        }
+        case 'lastMonth': {
+            const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const end = new Date(now.getFullYear(), now.getMonth(), 0);
+            return { start, end };
+        }
+    }
+}
+
+function getPreviousRange(start: Date, end: Date) {
+    const lengthMs = end.getTime() - start.getTime();
+    const prevEnd = addDays(start, -1);
+    const prevStart = new Date(prevEnd.getTime() - lengthMs);
+    return { start: startOfDay(prevStart), end: startOfDay(prevEnd) };
+}
+
+function formatRangeLabel(start: Date, end: Date) {
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+    return `${fmt(start)} - ${fmt(end)}`;
+}
+
+function line(a: { x: number; y: number }, b: { x: number; y: number }) {
+    const lx = b.x - a.x;
+    const ly = b.y - a.y;
+    return { length: Math.sqrt(lx * lx + ly * ly), angle: Math.atan2(ly, lx) };
+}
+
+function controlPoint(
+    current: { x: number; y: number },
+    prev: { x: number; y: number } | undefined,
+    next: { x: number; y: number } | undefined,
+    reverse?: boolean
+) {
+    const p = prev || current;
+    const n = next || current;
+    const smoothing = 0.2;
+    const o = line(p, n);
+    const angle = o.angle + (reverse ? Math.PI : 0);
+    const length = o.length * smoothing;
+    return { x: current.x + Math.cos(angle) * length, y: current.y + Math.sin(angle) * length };
+}
+
+function buildSmoothPath(points: { x: number; y: number }[]) {
+    return points.reduce((acc, point, i, arr) => {
+        if (i === 0) return `M ${point.x},${point.y}`;
+        const cps = controlPoint(arr[i - 1], arr[i - 2], point);
+        const cpe = controlPoint(point, arr[i - 1], arr[i + 1], true);
+        return `${acc} C ${cps.x},${cps.y} ${cpe.x},${cpe.y} ${point.x},${point.y}`;
+    }, '');
+}
+
+export default function SpendingAnalyticsScreen() {
+    const { width } = useWindowDimensions();
     const transactions = useTransactionStore((s) => s.transactions);
-    const currentMonth = useMemo(() => new Date(), []);
+    const [period, setPeriod] = useState<PeriodKey>('thisMonth');
+    const tabBarClearance = useTabBarClearance();
 
-    const monthlyTransactions = useMemo(
-        () => transactions.filter((tx) => isSameMonth(tx.transaction_date, currentMonth)),
-        [transactions, currentMonth]
+    const now = useMemo(() => new Date(), []);
+    const { start, end } = useMemo(() => getPeriodRange(period, now), [period, now]);
+    const { start: prevStart, end: prevEnd } = useMemo(() => getPreviousRange(start, end), [start, end]);
+
+    const inRange = (ts: number, rangeStart: Date, rangeEnd: Date) => {
+        const d = new Date(ts);
+        return d >= rangeStart && d <= new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate(), 23, 59, 59, 999);
+    };
+
+    const currentExpenses = useMemo(
+        () => transactions.filter((t) => t.transaction_type === 'expense' && inRange(t.transaction_date, start, end)),
+        [transactions, start, end]
     );
 
-    const monthlyIncome = useMemo(
-        () => monthlyTransactions.filter((tx) => tx.transaction_type === 'income').reduce((sum, tx) => sum + tx.amount, 0),
-        [monthlyTransactions]
+    const previousExpenses = useMemo(
+        () => transactions.filter((t) => t.transaction_type === 'expense' && inRange(t.transaction_date, prevStart, prevEnd)),
+        [transactions, prevStart, prevEnd]
     );
 
-    const monthlyExpense = useMemo(
-        () => monthlyTransactions.filter((tx) => tx.transaction_type === 'expense').reduce((sum, tx) => sum + tx.amount, 0),
-        [monthlyTransactions]
-    );
+    const totalSpent = useMemo(() => currentExpenses.reduce((sum, t) => sum + t.amount, 0), [currentExpenses]);
+    const previousSpent = useMemo(() => previousExpenses.reduce((sum, t) => sum + t.amount, 0), [previousExpenses]);
 
-    const expenseByCategory = useMemo(() => {
+    const percentChange = useMemo(() => {
+        if (previousSpent === 0) return totalSpent === 0 ? 0 : 100;
+        return ((totalSpent - previousSpent) / previousSpent) * 100;
+    }, [totalSpent, previousSpent]);
+
+    const isIncrease = percentChange > 0;
+    const trendColor = isIncrease ? '#EF4444' : '#16A34A';
+
+    const dailyTotals = useMemo(() => {
+        const dayCount = Math.max(1, Math.round((startOfDay(end).getTime() - startOfDay(start).getTime()) / 86400000) + 1);
+        const buckets = Array.from({ length: dayCount }, (_, i) => ({ date: addDays(start, i), total: 0 }));
+        currentExpenses.forEach((t) => {
+            const d = startOfDay(new Date(t.transaction_date));
+            const idx = Math.round((d.getTime() - startOfDay(start).getTime()) / 86400000);
+            if (buckets[idx]) buckets[idx].total += t.amount;
+        });
+        return buckets;
+    }, [currentExpenses, start, end]);
+
+    const categoryBreakdown = useMemo(() => {
         const map: Record<string, { total: number; color: string; name: string }> = {};
-        monthlyTransactions
-            .filter((tx) => tx.transaction_type === 'expense')
-            .forEach((tx) => {
-                const key = tx.category_id?.toString() || 'uncategorized';
-                if (!map[key]) {
-                    map[key] = {
-                        total: 0,
-                        color: tx.category_color || '#FF6B6B',
-                        name: tx.category_name || 'Other',
-                    };
-                }
-                map[key].total += tx.amount;
-            });
-        return Object.values(map).sort((a, b) => b.total - a.total);
-    }, [monthlyTransactions]);
+        currentExpenses.forEach((t) => {
+            const key = t.category_id?.toString() || 'uncategorized';
+            if (!map[key]) {
+                map[key] = { total: 0, color: '', name: t.category_name || 'Other' };
+            }
+            map[key].total += t.amount;
+        });
+        const sorted = Object.values(map).sort((a, b) => b.total - a.total);
+        const top = sorted.slice(0, 4);
+        const rest = sorted.slice(4);
+        const restTotal = rest.reduce((sum, c) => sum + c.total, 0);
 
-    const chartData = expenseByCategory.map((cat) => ({ x: cat.name, y: cat.total, color: cat.color }));
-    const topExpense = expenseByCategory[0]?.total || 0;
+        const withColors = top.map((c, i) => ({ ...c, color: CATEGORY_FALLBACK_COLORS[i] }));
+        if (restTotal > 0) {
+            withColors.push({ total: restTotal, color: CATEGORY_FALLBACK_COLORS[4] || '#9CA3AF', name: 'Others' });
+        }
+        return withColors.map((c) => ({
+            ...c,
+            percent: totalSpent > 0 ? (c.total / totalSpent) * 100 : 0,
+        }));
+    }, [currentExpenses, totalSpent]);
+
+    const chartWidth = width - 32 - 40;
+    const chartHeight = 130;
+    const maxVal = Math.max(...dailyTotals.map((d) => d.total), 1) * 1.2;
+
+    const points = dailyTotals.map((d, i) => ({
+        x: dailyTotals.length > 1 ? (i / (dailyTotals.length - 1)) * chartWidth : chartWidth / 2,
+        y: chartHeight - (d.total / maxVal) * chartHeight,
+    }));
+
+    const pathD = points.length > 1 ? buildSmoothPath(points) : '';
+    const lastPoint = points[points.length - 1];
+
+    const labelStep = Math.max(1, Math.ceil(dailyTotals.length / 6));
+    const xLabels = dailyTotals
+        .map((d, i) => ({ i, label: d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }))
+        .filter((d) => d.i % labelStep === 0 || d.i === dailyTotals.length - 1);
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                <Text style={[styles.title, { color: theme.colors.onBackground }]}>Spending</Text>
-                <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface }]}>
-                    <Text style={[styles.summaryLabel, { color: theme.colors.outline }]}>This month</Text>
-                    <Text style={[styles.summaryValue, { color: theme.colors.onBackground }]}>{formatCurrency(monthlyExpense)}</Text>
-                    <View style={styles.metricRow}>
-                        <View style={styles.metricBlock}>
-                            <Text style={[styles.metricLabel, { color: theme.colors.outline }]}>Income</Text>
-                            <Text style={[styles.metricValue, { color: theme.colors.secondary }]}>{formatCurrency(monthlyIncome)}</Text>
-                        </View>
-                        <View style={styles.metricBlock}>
-                            <Text style={[styles.metricLabel, { color: theme.colors.outline }]}>Net</Text>
-                            <Text style={[styles.metricValue, { color: theme.colors.primary }]}>{formatCurrency(monthlyIncome - monthlyExpense)}</Text>
+        <SafeAreaView style={styles.container}>
+            <ScrollView
+                contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarClearance }]}
+                showsVerticalScrollIndicator={false}
+            >
+                <Text style={styles.title}>Spending Analytics</Text>
+
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filterRow}
+                >
+                    {PERIODS.map((p) => {
+                        const selected = p.key === period;
+                        return (
+                            <TouchableOpacity
+                                key={p.key}
+                                style={[
+                                    styles.filterChip,
+                                    selected && styles.filterChipActive,
+                                ]}
+                                onPress={() => setPeriod(p.key)}
+                            >
+                                <Text style={[styles.filterChipText, selected && styles.filterChipTextActive]}>
+                                    {p.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+
+                <Text style={styles.dateRange}>{formatRangeLabel(start, end)}</Text>
+
+                <View style={styles.card}>
+                    <Text style={styles.cardLabel}>
+                        Spent {PERIODS.find((p) => p.key === period)?.label.toLowerCase()}
+                    </Text>
+                    <View style={styles.spendRow}>
+                        <Text style={styles.spendValue}>{formatCurrency(totalSpent)}</Text>
+                        <View style={styles.changeBadge}>
+                            {isIncrease ? (
+                                <ArrowUpRight size={14} color={trendColor} />
+                            ) : (
+                                <ArrowDownRight size={14} color={trendColor} />
+                            )}
+                            <Text style={[styles.changeText, { color: trendColor }]}>
+                                {Math.abs(percentChange).toFixed(1)}%
+                            </Text>
                         </View>
                     </View>
-                </View>
 
-                <View style={[styles.chartCard, { backgroundColor: theme.colors.surface }]}>
-                    {chartData.length ? (
-                        VictoryPie ? (
-                            <VictoryPie
-                                data={chartData}
-                                innerRadius={72}
-                                padAngle={2}
-                                colorScale={chartData.map((d) => d.color)}
-                                style={{ labels: { fill: 'transparent' } }}
-                                height={260}
-                            />
-                        ) : (
-                            <View style={styles.webChartFallback}>
-                                <Text style={[styles.webChartTitle, { color: theme.colors.onBackground }]}>Spending breakdown is unavailable on web.</Text>
-                                <Text style={[styles.emptyText, { color: theme.colors.outline }]}>Use the app on mobile for the pie chart, or check the category totals below.</Text>
+                    {dailyTotals.length > 1 ? (
+                        <View style={styles.chartWrap}>
+                            <Svg width={chartWidth} height={chartHeight + 20}>
+                                <Path d={pathD} stroke={trendColor} strokeWidth={2.5} fill="none" />
+                                {lastPoint ? (
+                                    <>
+                                        <Circle cx={lastPoint.x} cy={lastPoint.y} r={9} fill={trendColor} opacity={0.18} />
+                                        <Circle cx={lastPoint.x} cy={lastPoint.y} r={4} fill={trendColor} />
+                                    </>
+                                ) : null}
+                            </Svg>
+                            <View style={styles.xLabelRow}>
+                                {xLabels.map((l) => (
+                                    <Text key={l.i} style={styles.xLabel}>
+                                        {l.label}
+                                    </Text>
+                                ))}
                             </View>
-                        )
+                        </View>
                     ) : (
-                        <Text style={[styles.emptyText, { color: theme.colors.outline }]}>No expense data yet. Add transactions to see your spending breakdown.</Text>
+                        <Text style={styles.emptyText}>Not enough data yet to show a trend.</Text>
                     )}
                 </View>
 
-                {expenseByCategory.length ? (
-                    <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>Top categories</Text>
-                        {expenseByCategory.map((cat, idx) => {
-                            const percent = topExpense ? (cat.total / topExpense) * 100 : 0;
-                            return (
-                                <View key={idx} style={styles.categoryRow}>
-                                    <View style={styles.categoryLabelRow}>
-                                        <View style={[styles.dot, { backgroundColor: cat.color }]} />
-                                        <View>
-                                            <Text style={[styles.categoryName, { color: theme.colors.onBackground }]}>{cat.name}</Text>
-                                            <Text style={[styles.categoryAmount, { color: theme.colors.outline }]}>{formatCurrency(cat.total)}</Text>
-                                        </View>
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Spending by Category</Text>
+
+                    {categoryBreakdown.length ? (
+                        <>
+                            <View style={styles.segmentedBar}>
+                                {categoryBreakdown.map((c, i) => (
+                                    <View
+                                        key={i}
+                                        style={[
+                                            styles.segment,
+                                            { flex: Math.max(c.percent, 2), backgroundColor: c.color },
+                                        ]}
+                                    />
+                                ))}
+                            </View>
+
+                            <View style={styles.legendGrid}>
+                                {categoryBreakdown.map((c, i) => (
+                                    <View key={i} style={styles.legendItem}>
+                                        <View style={[styles.legendDot, { backgroundColor: c.color }]} />
+                                        <Text style={styles.legendName} numberOfLines={1}>
+                                            {c.name}
+                                        </Text>
+                                        <Text style={styles.legendPercent}>{c.percent.toFixed(1)}%</Text>
                                     </View>
-                                    <View style={styles.progressTrack}>
-                                        <View style={[styles.progressFill, { width: `${percent}%`, backgroundColor: cat.color }]} />
-                                    </View>
-                                </View>
-                            );
-                        })}
-                    </View>
-                ) : null}
+                                ))}
+                            </View>
+                        </>
+                    ) : (
+                        <Text style={styles.emptyText}>No expenses in this period yet.</Text>
+                    )}
+                </View>
             </ScrollView>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    content: { padding: 16, paddingBottom: 40 },
-    title: { fontSize: 28, fontWeight: '800', marginBottom: 16 },
-    summaryCard: { borderRadius: 24, padding: 22, marginBottom: 20 },
-    summaryLabel: { fontSize: 14, marginBottom: 10 },
-    summaryValue: { fontSize: 36, fontWeight: '800', marginBottom: 20 },
-    metricRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 16 },
-    metricBlock: { flex: 1 },
-    metricLabel: { fontSize: 12, marginBottom: 6 },
-    metricValue: { fontSize: 18, fontWeight: '700' },
-    chartCard: { borderRadius: 24, padding: 20, marginBottom: 20, minHeight: 260, justifyContent: 'center' },
-    emptyText: { textAlign: 'center', fontSize: 15, paddingVertical: 32 },
-    section: { marginTop: 4 },
-    sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 14 },
-    categoryRow: { marginBottom: 18 },
-    categoryLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-    dot: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
-    categoryName: { fontSize: 15, fontWeight: '700' },
-    categoryAmount: { fontSize: 13 },
-    progressTrack: { height: 6, borderRadius: 6, backgroundColor: '#E5E7EB', overflow: 'hidden' },
-    progressFill: { height: 6, borderRadius: 6 },
-    webChartFallback: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 260,
-        paddingHorizontal: 20,
+    container: {
+        flex: 1,
+        backgroundColor: '#F7F8FA',
     },
-    webChartTitle: {
-        fontSize: 16,
+    scrollContent: {},
+    title: {
+        fontSize: 28,
+        fontWeight: '800',
+        color: '#111827',
+        letterSpacing: -0.5,
+        paddingHorizontal: 20,
+        marginBottom: 26,
+        marginTop: 8,
+    },
+    filterRow: {
+        paddingHorizontal: 20,
+        gap: 8,
+        marginBottom: 12,
+    },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    filterChipActive: {
+        backgroundColor: '#111827',
+        borderColor: '#111827',
+    },
+    filterChipText: {
+        fontSize: 14,
         fontWeight: '700',
+        color: '#8A94A6',
+    },
+    filterChipTextActive: {
+        color: '#FFFFFF',
+    },
+    dateRange: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#8A94A6',
+        paddingHorizontal: 20,
+        marginBottom: 20,
+    },
+    card: {
+        borderRadius: 20,
+        padding: 20,
+        marginHorizontal: 16,
+        marginBottom: 16,
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    cardLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#8A94A6',
         marginBottom: 8,
+    },
+    spendRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 8,
+    },
+    spendValue: {
+        fontSize: 32,
+        fontWeight: '800',
+        color: '#111827',
+        letterSpacing: -0.5,
+    },
+    changeBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+    },
+    changeText: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    chartWrap: { marginTop: 12 },
+    xLabelRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 4,
+    },
+    xLabel: {
+        fontSize: 11,
+        fontWeight: '500',
+        color: '#8A94A6',
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#111827',
+        marginBottom: 16,
+    },
+    segmentedBar: {
+        flexDirection: 'row',
+        height: 14,
+        borderRadius: 7,
+        overflow: 'hidden',
+        gap: 3,
+        marginBottom: 20,
+    },
+    segment: {
+        borderRadius: 6,
+    },
+    legendGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+    },
+    legendItem: {
+        width: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 14,
+        paddingRight: 8,
+    },
+    legendDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        marginRight: 8,
+    },
+    legendName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#111827',
+        flexShrink: 1,
+        marginRight: 6,
+    },
+    legendPercent: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#8A94A6',
+        marginLeft: 'auto',
+    },
+    emptyText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#8A94A6',
         textAlign: 'center',
+        paddingVertical: 24,
     },
 });

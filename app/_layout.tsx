@@ -24,6 +24,8 @@ export default function RootLayout() {
                 <StatusBar style={isDarkMode ? 'light' : 'dark'} />
                 <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="profile" options={{ presentation: 'modal', headerShown: false }} />
+                    <Stack.Screen name="notifications" options={{ presentation: 'modal', headerShown: false }} />
                 </Stack>
             </PaperProvider>
         </GestureHandlerRootView>

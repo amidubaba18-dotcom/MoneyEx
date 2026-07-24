@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { TransactionRepository, TransactionRow } from '../repositories/TransactionRepository';
+import { AccountRepository } from '../repositories/AccountRepository';
 import { dbEvents } from '../utils/EventEmitter';
 
 const transactionRepo = new TransactionRepository();
+const accountRepo = new AccountRepository();
 
 interface TransactionState {
     transactions: TransactionRow[];
@@ -13,6 +15,8 @@ interface TransactionState {
     fetchRecent: () => Promise<void>;
     addTransaction: (data: Parameters<typeof transactionRepo.create>[0]) => Promise<void>;
     deleteTransaction: (id: number) => Promise<void>;
+    resetAll: () => Promise<void>;
+    resetMonth: (year: number, month: number) => Promise<void>;
 }
 
 export const useTransactionStore = create<TransactionState>((set, get) => ({
@@ -55,5 +59,17 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     deleteTransaction: async (id) => {
         await transactionRepo.delete(id);
         // same
+    },
+    resetAll: async () => {
+        await transactionRepo.clearAll();
+        await accountRepo.resetBalances();
+        get().fetchAll();
+        get().fetchRecent();
+    },
+    resetMonth: async (year, month) => {
+        await transactionRepo.clearMonth(year, month);
+        await accountRepo.resetBalances();
+        get().fetchAll();
+        get().fetchRecent();
     },
 }));

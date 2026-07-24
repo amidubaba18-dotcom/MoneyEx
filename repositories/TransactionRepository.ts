@@ -102,5 +102,43 @@ export class TransactionRepository {
         });
     }
 
+    // Delete all transactions (reset)
+    async clearAll(): Promise<void> {
+        const db = getDatabase();
+        return new Promise((resolve, reject) => {
+            db.transaction(tx => {
+                tx.executeSql(
+                    'DELETE FROM transactions',
+                    [],
+                    () => {
+                        dbEvents.emit('transactions-changed');
+                        resolve();
+                    },
+                    (_, error) => { reject(error); return false; }
+                );
+            });
+        });
+    }
+
+    // Delete transactions in a specific month (month is 0-based JS month)
+    async clearMonth(year: number, month: number): Promise<void> {
+        const start = new Date(year, month, 1).getTime();
+        const end = new Date(year, month + 1, 1).getTime();
+        const db = getDatabase();
+        return new Promise((resolve, reject) => {
+            db.transaction(tx => {
+                tx.executeSql(
+                    'DELETE FROM transactions WHERE transaction_date >= ? AND transaction_date < ?',
+                    [start, end],
+                    () => {
+                        dbEvents.emit('transactions-changed');
+                        resolve();
+                    },
+                    (_, error) => { reject(error); return false; }
+                );
+            });
+        });
+    }
+
     // ... update, etc.
 }

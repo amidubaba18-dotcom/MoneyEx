@@ -137,6 +137,38 @@ function createWebDatabase(): { transaction: (fn: (tx: WebSqlTransaction) => voi
                         state.transactions = state.transactions.filter((row) => row.id !== id);
                         saveState();
                         result = makeResult([]);
+                    } else if (normalized === 'delete from transactions') {
+                        state.transactions = [];
+                        saveState();
+                        result = makeResult([]);
+                    } else if (normalized.startsWith('delete from transactions where transaction_date')) {
+                        // Handle 'DELETE FROM transactions WHERE transaction_date >= ? AND transaction_date < ?'
+                        const paramsVals = params;
+                        if (paramsVals && paramsVals.length >= 2) {
+                            const start = paramsVals[0];
+                            const end = paramsVals[1];
+                            state.transactions = state.transactions.filter((row) => !(row.transaction_date >= start && row.transaction_date < end));
+                            saveState();
+                            result = makeResult([]);
+                        } else {
+                            result = makeResult([]);
+                        }
+                    } else if (normalized.startsWith('update accounts set balance')) {
+                        // Support updating all account balances (e.g., 'UPDATE accounts SET balance = 0')
+                        const match = sql.match(/set\s+balance\s*=\s*\?/i);
+                        if (match && params.length > 0) {
+                            const newVal = params[0];
+                            state.accounts = state.accounts.map((a) => ({ ...a, balance: newVal }));
+                        } else {
+                            // handle literal number in SQL
+                            const m2 = sql.match(/set\s+balance\s*=\s*(\d+(?:\.\d+)?)/i);
+                            if (m2) {
+                                const val = Number(m2[1]);
+                                state.accounts = state.accounts.map((a) => ({ ...a, balance: val }));
+                            }
+                        }
+                        saveState();
+                        result = makeResult([]);
                     } else {
                         console.warn('Web SQL fallback does not support query:', sql);
                         result = makeResult([]);
@@ -267,7 +299,7 @@ function seedDefaultCategories(tx: WebSqlTransaction | SQLite.SQLTransaction) {
         ['Food & Drinks', 'UtensilsCrossed', '#FF6B6B', 'expense'],
         ['Transport', 'Car', '#4ECDC4', 'expense'],
         ['Shopping', 'ShoppingBag', '#FFD166', 'expense'],
-        ['Entertainment', 'Film', '#A29BFE', 'expense'],
+        ['Utilities', 'Wrench', '#A29BFE', 'expense'],
         ['Bills', 'FileText', '#6C5CE7', 'expense'],
     ];
     const incomeCats = [

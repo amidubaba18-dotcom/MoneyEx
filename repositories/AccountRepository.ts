@@ -26,4 +26,22 @@ export class AccountRepository {
     }
 
     // ... add other account methods later
+
+    // Reset all account balances to zero
+    async resetBalances(): Promise<void> {
+        const db = getDatabase();
+        return new Promise((resolve, reject) => {
+            db.transaction(tx => {
+                tx.executeSql(
+                    'UPDATE accounts SET balance = 0',
+                    [],
+                    () => {
+                        dbEvents.emit('accounts-changed');
+                        resolve();
+                    },
+                    (_, error) => { reject(error); return false; }
+                );
+            });
+        });
+    }
 }
