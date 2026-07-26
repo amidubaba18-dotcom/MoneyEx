@@ -4,122 +4,99 @@ import { Home, BarChart3, Wallet } from 'lucide-react-native';
 import {
     View,
     StyleSheet,
-    useWindowDimensions,
-    Animated,
     Pressable,
+    Text,
+    Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const COLORS = {
     surface: '#FFFFFF',
-    border: '#EEF0F3',
-    active: '#111827',
-    activeIcon: '#FFFFFF',
-    inactiveIcon: '#9CA3AF',
+    border: '#E8E8E8',
+    active: '#0F172A',      // Dark ink for active
+    activeIcon: '#0F172A',  // Same as active
+    inactiveIcon: '#94A3B8', // Grey for inactive
+    labelActive: '#0F172A',
+    labelInactive: '#94A3B8',
 };
 
-const TAB_HEIGHT = 62;
-const TAB_MARGIN_BOTTOM = 16;
+const TAB_HEIGHT = 56;
+const TAB_MARGIN_BOTTOM = 8;
 const TABS = ['index', 'budget', 'transactions'] as const;
+
+const TAB_LABELS: Record<string, string> = {
+    index: 'Home',
+    budget: 'Analytics',
+    transactions: 'Transactions',
+};
 
 export function useTabBarClearance() {
     const insets = useSafeAreaInsets();
     return TAB_HEIGHT + insets.bottom + TAB_MARGIN_BOTTOM + 24;
 }
 
-function TabIcon({ focused, Icon }: { focused: boolean; Icon: typeof Home }) {
-    const scale = React.useRef(new Animated.Value(focused ? 1 : 0.92)).current;
-
-    React.useEffect(() => {
-        Animated.spring(scale, {
-            toValue: focused ? 1 : 0.92,
-            useNativeDriver: true,
-            friction: 7,
-            tension: 140,
-        }).start();
-    }, [focused]);
-
+function TabBarIcon({ focused, Icon }: { focused: boolean; Icon: typeof Home }) {
     return (
-        <Animated.View style={{ transform: [{ scale }] }}>
-            <Icon
-                size={22}
-                color={focused ? COLORS.activeIcon : COLORS.inactiveIcon}
-                strokeWidth={focused ? 2.4 : 2}
-            />
-        </Animated.View>
+        <Icon
+            size={24}
+            color={focused ? COLORS.activeIcon : COLORS.inactiveIcon}
+            strokeWidth={focused ? 2.5 : 2}
+        />
     );
 }
 
-function ModernTabBar({ state, descriptors, navigation }: any) {
-    const { width } = useWindowDimensions();
+function TwitterTabBar({ state, descriptors, navigation }: any) {
     const insets = useSafeAreaInsets();
-    const sideInset = width < 420 ? 16 : 32;
-    const barWidth = width - sideInset * 2;
-    const itemWidth = barWidth / TABS.length;
-    const pillSize = 44;
-
-    const translateX = React.useRef(new Animated.Value(state.index * itemWidth)).current;
-
-    React.useEffect(() => {
-        Animated.spring(translateX, {
-            toValue: state.index * itemWidth,
-            useNativeDriver: true,
-            friction: 9,
-            tension: 120,
-        }).start();
-    }, [state.index, itemWidth]);
 
     return (
         <View
             style={[
                 styles.barContainer,
                 {
-                    left: sideInset,
-                    right: sideInset,
-                    bottom: insets.bottom + TAB_MARGIN_BOTTOM,
-                    height: TAB_HEIGHT,
+                    paddingBottom: insets.bottom + TAB_MARGIN_BOTTOM,
                 },
             ]}
         >
-            <Animated.View
-                style={[
-                    styles.pillIndicator,
-                    {
-                        width: pillSize,
-                        height: pillSize,
-                        borderRadius: pillSize / 2,
-                        left: itemWidth / 2 - pillSize / 2,
-                        transform: [{ translateX }],
-                    },
-                ]}
-            />
-            {state.routes.map((route: any, index: number) => {
-                const { options } = descriptors[route.key];
-                const focused = state.index === index;
-                const Icon = options.tabBarIconComponent;
+            <View style={styles.barInner}>
+                {state.routes.map((route: any, index: number) => {
+                    const { options } = descriptors[route.key];
+                    const focused = state.index === index;
+                    const Icon = options.tabBarIconComponent;
+                    const label = TAB_LABELS[route.name] || route.name;
 
-                const onPress = () => {
-                    const event = navigation.emit({
-                        type: 'tabPress',
-                        target: route.key,
-                        canPreventDefault: true,
-                    });
-                    if (!focused && !event.defaultPrevented) {
-                        navigation.navigate(route.name);
-                    }
-                };
+                    const onPress = () => {
+                        const event = navigation.emit({
+                            type: 'tabPress',
+                            target: route.key,
+                            canPreventDefault: true,
+                        });
+                        if (!focused && !event.defaultPrevented) {
+                            navigation.navigate(route.name);
+                        }
+                    };
 
-                return (
-                    <Pressable
-                        key={route.key}
-                        style={[styles.tabItem, { width: itemWidth }]}
-                        onPress={onPress}
-                        hitSlop={8}
-                    >
-                        <TabIcon focused={focused} Icon={Icon} />
-                    </Pressable>
-                );
-            })}
+                    return (
+                        <Pressable
+                            key={route.key}
+                            style={styles.tabItem}
+                            onPress={onPress}
+                            hitSlop={8}
+                            android_ripple={{ color: 'rgba(15, 23, 42, 0.05)', borderless: false }}
+                        >
+                            <TabBarIcon focused={focused} Icon={Icon} />
+                            <Text
+                                style={[
+                                    styles.tabLabel,
+                                    { color: focused ? COLORS.labelActive : COLORS.labelInactive },
+                                    focused && styles.tabLabelActive,
+                                ]}
+                            >
+                                {label}
+                            </Text>
+                        </Pressable>
+                    );
+                })}
+            </View>
         </View>
     );
 }
@@ -127,7 +104,7 @@ function ModernTabBar({ state, descriptors, navigation }: any) {
 export default function TabLayout() {
     return (
         <Tabs
-            tabBar={(props) => <ModernTabBar {...props} />}
+            tabBar={(props) => <TwitterTabBar {...props} />}
             screenOptions={{
                 headerShown: false,
             }}
@@ -148,30 +125,52 @@ export default function TabLayout() {
     );
 }
 
+// ============================================================
+// TWITTER-STYLE STYLES – Clean, simple, solid
+// ============================================================
 const styles = StyleSheet.create({
     barContainer: {
         position: 'absolute',
-        flexDirection: 'row',
-        alignItems: 'center',
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundColor: COLORS.surface,
-        borderRadius: 24,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.08,
-        shadowRadius: 24,
-        elevation: 10,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.border,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: -2 },
+                shadowOpacity: 0.04,
+                shadowRadius: 8,
+            },
+            android: {
+                elevation: 8,
+            },
+        }),
+    },
+    barInner: {
+        flexDirection: 'row',
+        height: TAB_HEIGHT,
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        paddingHorizontal: 16,
     },
     tabItem: {
+        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        height: '100%',
-        zIndex: 2,
+        paddingVertical: 4,
+        gap: 2,
     },
-    pillIndicator: {
-        position: 'absolute',
-        backgroundColor: COLORS.active,
-        zIndex: 1,
+    tabLabel: {
+        fontSize: 10,
+        fontWeight: '500',
+        color: COLORS.labelInactive,
+        marginTop: 1,
+        letterSpacing: 0.2,
+    },
+    tabLabelActive: {
+        fontWeight: '700',
     },
 });

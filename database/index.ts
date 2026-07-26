@@ -28,26 +28,85 @@ interface WebSqlTransaction {
     ) => void;
 }
 
-type NativeDB = SQLite.WebSQLDatabase;
-
-type Database = NativeDB | { transaction: (fn: (tx: WebSqlTransaction) => void) => void };
+type Database = {
+    transaction: (
+        fn: (tx: WebSqlTransaction) => void,
+        errorCb?: (error: any) => void,
+        successCb?: () => void
+    ) => void;
+};
 
 let db: Database;
 
-export function getDatabase() {
+export function getDatabase(): Database {
     if (!db) {
         if (Platform.OS === 'web') {
             db = createWebDatabase();
             initializeDatabase();
         } else {
-            db = SQLite.openDatabase('moneyex.db');
+            db = createNativeDatabase();
             initializeDatabase();
         }
     }
     return db;
 }
 
-function createWebDatabase(): { transaction: (fn: (tx: WebSqlTransaction) => void) => void } {
+// ---------------------------------------------------------------------------
+// NATIVE (new expo-sqlite sync API, wrapped to look like the old WebSQL API)
+// ---------------------------------------------------------------------------
+function createNativeDatabase(): Database {
+    const nativeDb = SQLite.openDatabaseSync('moneyex.db');
+
+    const makeResult = (rows: any[]): WebSqlResult => ({
+        rows: {
+            length: rows.length,
+            item: (index: number) => rows[index],
+            _array: rows,
+        },
+    });
+
+    const transaction = (
+        fn: (tx: WebSqlTransaction) => void,
+        errorCb?: (error: any) => void,
+        successCb?: () => void
+    ) => {
+        const tx: WebSqlTransaction = {
+            executeSql: (sql, params = [], success, error) => {
+                try {
+                    const normalized = sql.trim().toLowerCase();
+                    if (normalized.startsWith('select')) {
+                        const rows = nativeDb.getAllSync(sql, params as any[]);
+                        success?.(tx, makeResult(rows));
+                    } else {
+                        nativeDb.runSync(sql, params as any[]);
+                        success?.(tx, makeResult([]));
+                    }
+                } catch (err) {
+                    if (error) {
+                        error(tx, err);
+                    } else {
+                        console.error(err);
+                    }
+                }
+            },
+        };
+
+        try {
+            fn(tx);
+            successCb?.();
+        } catch (err) {
+            console.error('Native transaction failed:', err);
+            errorCb?.(err);
+        }
+    };
+
+    return { transaction };
+}
+
+// ---------------------------------------------------------------------------
+// WEB (in-memory + localStorage shim, unchanged from before)
+// ---------------------------------------------------------------------------
+function createWebDatabase(): Database {
     const state = loadWebState();
 
     const saveState = () => {
@@ -66,7 +125,11 @@ function createWebDatabase(): { transaction: (fn: (tx: WebSqlTransaction) => voi
         },
     });
 
-    const transaction = (fn: (tx: WebSqlTransaction) => void) => {
+    const transaction = (
+        fn: (tx: WebSqlTransaction) => void,
+        errorCb?: (error: any) => void,
+        successCb?: () => void
+    ) => {
         const tx: WebSqlTransaction = {
             executeSql: (sql, params = [], success, error) => {
                 try {
@@ -142,7 +205,6 @@ function createWebDatabase(): { transaction: (fn: (tx: WebSqlTransaction) => voi
                         saveState();
                         result = makeResult([]);
                     } else if (normalized.startsWith('delete from transactions where transaction_date')) {
-                        // Handle 'DELETE FROM transactions WHERE transaction_date >= ? AND transaction_date < ?'
                         const paramsVals = params;
                         if (paramsVals && paramsVals.length >= 2) {
                             const start = paramsVals[0];
@@ -154,13 +216,11 @@ function createWebDatabase(): { transaction: (fn: (tx: WebSqlTransaction) => voi
                             result = makeResult([]);
                         }
                     } else if (normalized.startsWith('update accounts set balance')) {
-                        // Support updating all account balances (e.g., 'UPDATE accounts SET balance = 0')
                         const match = sql.match(/set\s+balance\s*=\s*\?/i);
                         if (match && params.length > 0) {
                             const newVal = params[0];
                             state.accounts = state.accounts.map((a) => ({ ...a, balance: newVal }));
                         } else {
-                            // handle literal number in SQL
                             const m2 = sql.match(/set\s+balance\s*=\s*(\d+(?:\.\d+)?)/i);
                             if (m2) {
                                 const val = Number(m2[1]);
@@ -184,7 +244,13 @@ function createWebDatabase(): { transaction: (fn: (tx: WebSqlTransaction) => voi
                 }
             },
         };
-        fn(tx);
+
+        try {
+            fn(tx);
+            successCb?.();
+        } catch (err) {
+            errorCb?.(err);
+        }
     };
 
     return { transaction };
@@ -294,7 +360,7 @@ function seedDefaults() {
     });
 }
 
-function seedDefaultCategories(tx: WebSqlTransaction | SQLite.SQLTransaction) {
+function seedDefaultCategories(tx: WebSqlTransaction) {
     const expenseCats = [
         ['Food & Drinks', 'UtensilsCrossed', '#FF6B6B', 'expense'],
         ['Transport', 'Car', '#4ECDC4', 'expense'],
@@ -313,7 +379,7 @@ function seedDefaultCategories(tx: WebSqlTransaction | SQLite.SQLTransaction) {
     });
 }
 
-function seedDefaultAccount(tx: WebSqlTransaction | SQLite.SQLTransaction) {
+function seedDefaultAccount(tx: WebSqlTransaction) {
     tx.executeSql(
         'INSERT INTO accounts (name, balance, color, icon, type) VALUES (?, ?, ?, ?, ?)',
         ['Cash', 0, '#4F46E5', 'Wallet', 'checking']

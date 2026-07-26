@@ -1,44 +1,89 @@
-import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+﻿import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+interface NotificationSettings {
+    enabled: boolean;
+    weeklyReport: boolean;
+    monthlyReport: boolean;
+    transactionAlerts: boolean;
+    budgetAlerts: boolean;
+}
+
+interface Notification {
+    id: string;
+    title: string;
+    description: string;
+    time: string;
+    read: boolean;
+    data?: any;
+}
 
 interface UIState {
-    isDarkMode: boolean;
-    toggleTheme: () => void;
-    selectedMonth: string; // 'YYYY-MM'
-    setSelectedMonth: (month: string) => void;
     userName: string;
-    setUserName: (name: string) => void;
-    // notification preferences
-    notificationPrefs: {
-        enabled: boolean;
-        type: 'daily' | 'weekly' | 'monthly' | null;
-        time?: string; // HH:MM
-        weekday?: number; // 1-7
-        dayOfMonth?: number; // 1-31
-        scheduledId?: string | null;
-    };
-    setNotificationPrefs: (p: Partial<UIState['notificationPrefs']>) => void;
+    avatar: string | null;
     notificationCount: number;
-    setNotificationCount: (n: number) => void;
+    notifications: Notification[];
+    notificationSettings: NotificationSettings;
+    themeMode: ThemeMode;
+    language: string;
+    setUserName: (name: string) => void;
+    setAvatar: (uri: string | null) => void;
+    setNotificationCount: (count: number) => void;
+    setNotifications: (notifications: Notification[]) => void;
+    markNotificationAsRead: (id: string) => void;
+    markAllAsRead: () => void;
+    updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
+    setThemeMode: (mode: ThemeMode) => void;
+    setLanguage: (lang: string) => void;
 }
+
+const defaultSettings: NotificationSettings = {
+    enabled: true,
+    weeklyReport: true,
+    monthlyReport: true,
+    transactionAlerts: true,
+    budgetAlerts: true,
+};
 
 export const useUIStore = create<UIState>()(
     persist(
         (set) => ({
-            isDarkMode: false,
-            toggleTheme: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
-            selectedMonth: new Date().toISOString().slice(0, 7),
-            setSelectedMonth: (month) => set({ selectedMonth: month }),
-            userName: 'Baba',
-            setUserName: (name) => set({ userName: name }),
-            notificationPrefs: { enabled: false, type: null, time: '08:00', weekday: 1, dayOfMonth: 1, scheduledId: null },
-            setNotificationPrefs: (p) => set((state) => ({ notificationPrefs: { ...state.notificationPrefs, ...p } })),
+            userName: 'User',
+            avatar: null,
             notificationCount: 0,
-            setNotificationCount: (n: number) => set({ notificationCount: n }),
+            notifications: [],
+            notificationSettings: defaultSettings,
+            themeMode: 'system',
+            language: 'en',
+
+            setUserName: (name) => set({ userName: name }),
+            setAvatar: (uri) => set({ avatar: uri }),
+            setNotificationCount: (count) => set({ notificationCount: count }),
+            setNotifications: (notifications) => set({ notifications }),
+            markNotificationAsRead: (id) =>
+                set((state) => ({
+                    notifications: state.notifications.map((n) =>
+                        n.id === id ? { ...n, read: true } : n
+                    ),
+                    notificationCount: Math.max(0, state.notificationCount - 1),
+                })),
+            markAllAsRead: () =>
+                set((state) => ({
+                    notifications: state.notifications.map((n) => ({ ...n, read: true })),
+                    notificationCount: 0,
+                })),
+            updateNotificationSettings: (settings) =>
+                set((state) => ({
+                    notificationSettings: { ...state.notificationSettings, ...settings },
+                })),
+            setThemeMode: (mode) => set({ themeMode: mode }),
+            setLanguage: (lang) => set({ language: lang }),
         }),
         {
-            name: 'ui-storage',
+            name: 'moneyex-ui-storage',
             storage: createJSONStorage(() => AsyncStorage),
         }
     )

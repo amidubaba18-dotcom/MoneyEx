@@ -1,26 +1,21 @@
-/** @type {import('tailwindcss').Config} */
+// tailwind.config.js
 module.exports = {
-  content: [
-    "./app/**/*.{js,jsx,ts,tsx}",
-    "./components/**/*.{js,jsx,ts,tsx}"
-  ],
+  content: ["./app/**/*.{js,jsx,ts,tsx}", "./components/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        background: '#FAFAF8',   // soft warm off-white (was #f8f8f8)
-        surface: '#ffffff',      // cards on top of background stay pure white
-        card: '#14161B',         // dark charcoal-navy for balance card (was pure black)
-        primary: '#000000',      // keep for buttons/nav if you want true black there
-        text: '#1a1a1a',
-        muted: '#8e8e93',
-
-        // new: semantic colors for consistent income/expense treatment
-        income: '#1FAA59',       // deep green
-        incomeSoft: '#E6F7EC',   // soft green tint (for icon circles/backgrounds)
-        expense: '#E5484D',      // deep red
-        expenseSoft: '#FCEBEC',  // soft red tint
-
-        accent: '#1FAA59',       // pick one accent for links/active states — using income green since it's a finance app
+        // Your new "Hi Ben" inspo palette
+        'brand-bg': '#F0F4FF', // The soft blue/white background
+        'slate-900': '#0F172A',
+        'slate-800': '#1E293B',
+        'slate-600': '#475569',
+        'slate-400': '#94A3B8',
+        'slate-200': '#E2E8F0',
+        'slate-100': '#F1F5F9',
+        'cyan-500': '#06B6D4', // Income / Positive
+        'orange-500': '#FB923C', // Expense / Negative
+        'green-500': '#22C55E', // For percentage increases (+2.10%)
+        'red-500': '#EF4444',   // For percentage decreases
       }
     },
   },

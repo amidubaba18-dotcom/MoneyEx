@@ -1,59 +1,112 @@
-import React, { useEffect, useState } from 'react';
-import { View, ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
+﻿import React, { useEffect, useState } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import * as Icons from 'lucide-react-native';
-import { useTheme } from 'react-native-paper';
 import { CategoryRepository } from '../repositories/CategoryRepository';
 
 const categoryRepo = new CategoryRepository();
 
-interface CategoryPickerProps {
-    type: 'income' | 'expense';
-    selectedCategoryId: string | null;
-    onSelect: (id: string) => void;
+export interface Category {
+    id: number;
+    name: string;
+    icon: string;
+    color: string;
 }
 
-export function CategoryPicker({ type, selectedCategoryId, onSelect }: CategoryPickerProps) {
-    const theme = useTheme();
-    const [categories, setCategories] = useState<Array<{ id: number; name: string; icon: string; color: string }>>([]);
+interface CategoryPickerProps {
+    type: 'income' | 'expense';
+    selectedCategory: Category | null;
+    onSelect: (category: Category) => void;
+}
+
+export function CategoryPicker({ type, selectedCategory, onSelect }: CategoryPickerProps) {
+    const [categories, setCategories] = useState<Category[]>([]);
 
     useEffect(() => {
         categoryRepo.getByType(type).then(setCategories).catch(console.error);
     }, [type]);
 
     return (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.container}>
+        <BottomSheetScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.container}
+        >
             {categories.map((cat) => {
                 const IconComponent = (Icons as any)[cat.icon] || Icons.Circle;
-                const isSelected = selectedCategoryId === cat.id.toString();
+                const isSelected = selectedCategory?.id === cat.id;
                 return (
                     <TouchableOpacity
                         key={cat.id}
-                        style={[styles.item, isSelected && { backgroundColor: cat.color + '20' }]}
-                        onPress={() => onSelect(cat.id.toString())}
+                        style={styles.item}
+                        onPress={() => onSelect(cat)}
+                        activeOpacity={0.7}
                     >
-                        <View style={[styles.iconCircle, { backgroundColor: cat.color }]}>
-                            <IconComponent size={24} color="white" />
+                        <View
+                            style={[
+                                styles.iconCircle,
+                                { backgroundColor: cat.color },
+                                isSelected && styles.iconCircleSelected,
+                            ]}
+                        >
+                            <IconComponent size={20} color="white" strokeWidth={2.5} />
                         </View>
-                        <Text style={[styles.label, { color: theme.colors.onSurface }]} numberOfLines={1}>
+                        <Text
+                            style={[styles.label, isSelected && styles.labelSelected]}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.7}
+                        >
                             {cat.name}
                         </Text>
                     </TouchableOpacity>
                 );
             })}
-        </ScrollView>
+        </BottomSheetScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { marginBottom: 24, maxHeight: 100 },
-    item: { alignItems: 'center', marginRight: 16, padding: 8, borderRadius: 12 },
+    container: {
+        paddingBottom: 8,
+        paddingRight: 8,
+        gap: 4,
+    },
+    item: {
+        alignItems: 'center',
+        marginRight: 14,
+        width: 68,
+    },
     iconCircle: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 4,
+        marginBottom: 6,
+        borderWidth: 2,
+        borderColor: 'transparent',
     },
-    label: { fontSize: 12, textAlign: 'center' },
+    iconCircleSelected: {
+        borderColor: '#0F172A',
+        borderWidth: 2.5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    label: {
+        fontSize: 11,
+        fontWeight: '500',
+        color: '#94A3B8',
+        textAlign: 'center',
+        maxWidth: 68,
+    },
+    labelSelected: {
+        color: '#0F172A',
+        fontWeight: '700',
+    },
 });
+
+export default CategoryPicker;

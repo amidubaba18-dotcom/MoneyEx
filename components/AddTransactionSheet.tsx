@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef, useImperativeHandle } from 'react';
-import { View, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native';
+﻿import React, { useEffect, useMemo, useState, useCallback, useRef, useImperativeHandle } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet, Platform, TextInput, ScrollView } from 'react-native';
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { useTransactionStore } from '../store/useTransactionStore';
-import { CategoryPicker } from './CategoryPicker';
+import { Calendar } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from 'react-native-paper';
+
+import { useTransactionStore } from '../store/useTransactionStore';
+import { CategoryPicker, Category } from './CategoryPicker';
 import { useDefaultAccount } from '../hooks/useDefaultAccount';
 
 export interface AddTransactionSheetHandle {
@@ -22,12 +24,12 @@ const AddTransactionSheet = React.forwardRef<AddTransactionSheetHandle, AddTrans
     ({ defaultType = 'expense' }, ref) => {
         const theme = useTheme();
         const insets = useSafeAreaInsets();
-        const snapPoints = useMemo(() => ['92%'], []);
+        const snapPoints = useMemo(() => ['85%'], []);
         const sheetRef = useRef<BottomSheet>(null);
 
         const [amount, setAmount] = useState('');
         const [type, setType] = useState<'income' | 'expense'>(defaultType);
-        const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+        const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
         const [note, setNote] = useState('');
         const [date, setDate] = useState(new Date());
         const [showDatePicker, setShowDatePicker] = useState(false);
@@ -37,12 +39,15 @@ const AddTransactionSheet = React.forwardRef<AddTransactionSheetHandle, AddTrans
 
         useEffect(() => {
             setType(defaultType);
-            setSelectedCategoryId(null);
+            setSelectedCategory(null);
         }, [defaultType]);
 
         const open = useCallback((nextType: 'income' | 'expense') => {
             setType(nextType);
-            setSelectedCategoryId(null);
+            setSelectedCategory(null);
+            setAmount('');
+            setNote('');
+            setDate(new Date());
             sheetRef.current?.expand();
         }, []);
 
@@ -53,26 +58,26 @@ const AddTransactionSheet = React.forwardRef<AddTransactionSheetHandle, AddTrans
         useImperativeHandle(ref, () => ({ open, close }), [open, close]);
 
         const handleSave = useCallback(async () => {
-            const cleaned = amount.replace(/[,\s]/g, '');
-            const value = Number(cleaned);
-            if (!value || value <= 0 || !selectedCategoryId || !defaultAccount || Number.isNaN(value)) return;
+            const value = parseFloat(amount);
+            if (isNaN(value) || value <= 0 || !selectedCategory || !defaultAccount) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                return;
+            }
 
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             await addTransaction({
                 amount: value,
-                type,
-                categoryId: parseInt(selectedCategoryId, 10),
+                transaction_type: type,
+                categoryId: selectedCategory.id,
                 accountId: defaultAccount.id,
-                date,
+                transaction_date: date.toISOString(),
                 note: note.trim() || undefined,
+                categoryName: selectedCategory.name,
+                categoryIcon: selectedCategory.icon,
+                categoryColor: selectedCategory.color,
             });
-
-            setAmount('');
-            setNote('');
-            setSelectedCategoryId(null);
-            setDate(new Date());
             close();
-        }, [amount, type, selectedCategoryId, date, note, defaultAccount, addTransaction, close]);
+        }, [amount, type, selectedCategory, date, note, defaultAccount, addTransaction, close]);
 
         return (
             <BottomSheet
@@ -80,13 +85,22 @@ const AddTransactionSheet = React.forwardRef<AddTransactionSheetHandle, AddTrans
                 index={-1}
                 snapPoints={snapPoints}
                 enablePanDownToClose
+                keyboardBehavior="interactive"
+                keyboardBlurBehavior="restore"
                 backdropComponent={(props) => (
-                    <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} />
+                    <BottomSheetBackdrop
+                        {...props}
+                        disappearsOnIndex={-1}
+                        appearsOnIndex={0}
+                        opacity={0.5}
+                        pressBehavior="close"
+                    />
                 )}
-                handleIndicatorStyle={{ backgroundColor: theme.colors.outline }}
-                backgroundStyle={{ backgroundColor: theme.colors.surface }}
+                handleIndicatorStyle={{ backgroundColor: '#D1D5DB', width: 40, height: 4, borderRadius: 2 }}
+                backgroundStyle={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 32, borderTopRightRadius: 32 }}
             >
-                <BottomSheetView style={[styles.container, { paddingBottom: insets.bottom + 20 }]}>
+                <BottomSheetView style={[styles.container, { paddingBottom: insets.bottom + 16 }]}>
+
                     {/* Type Toggle */}
                     <View style={styles.typeToggle}>
                         <TouchableOpacity
@@ -95,6 +109,7 @@ const AddTransactionSheet = React.forwardRef<AddTransactionSheetHandle, AddTrans
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 setType('expense');
                             }}
+                            activeOpacity={0.8}
                         >
                             <Text style={[styles.typeText, type === 'expense' && styles.activeTypeText]}>
                                 Expense
@@ -106,6 +121,7 @@ const AddTransactionSheet = React.forwardRef<AddTransactionSheetHandle, AddTrans
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 setType('income');
                             }}
+                            activeOpacity={0.8}
                         >
                             <Text style={[styles.typeText, type === 'income' && styles.activeTypeText]}>
                                 Income
@@ -113,65 +129,86 @@ const AddTransactionSheet = React.forwardRef<AddTransactionSheetHandle, AddTrans
                         </TouchableOpacity>
                     </View>
 
-                    {/* Amount Input */}
-                    <TextInput
-                        style={styles.amountInput}
-                        placeholder="0.00"
-                        placeholderTextColor={theme.colors.outline}
-                        keyboardType="decimal-pad"
-                        value={amount}
-                        onChangeText={setAmount}
-                        autoFocus
-                    />
-
-                    {/* Category Picker */}
-                    <CategoryPicker
-                        type={type}
-                        selectedCategoryId={selectedCategoryId}
-                        onSelect={setSelectedCategoryId}
-                    />
-
-                    {/* Date Picker */}
-                    <TouchableOpacity
-                        style={styles.dateButton}
-                        onPress={() => setShowDatePicker(true)}
-                    >
-                        <Text style={{ color: theme.colors.onSurface }}>
-                            {date.toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                            })}
-                        </Text>
-                    </TouchableOpacity>
-                    {showDatePicker && (
-                        <DateTimePicker
-                            value={date}
-                            mode="date"
-                            display="default"
-                            onChange={(event, selectedDate) => {
-                                setShowDatePicker(false);
-                                if (selectedDate) setDate(selectedDate);
-                            }}
+                    {/* Amount Input with native keyboard */}
+                    <View style={styles.amountContainer}>
+                        <Text style={styles.currencySymbol}>GH₵</Text>
+                        <TextInput
+                            style={styles.amountInput}
+                            value={amount}
+                            onChangeText={setAmount}
+                            placeholder="0.00"
+                            placeholderTextColor="#94A3B8"
+                            keyboardType="decimal-pad"
+                            autoFocus={true}
+                            selectionColor="#0F172A"
                         />
-                    )}
+                    </View>
 
-                    {/* Note Input */}
-                    <TextInput
-                        style={styles.noteInput}
-                        placeholder="Add a note..."
-                        placeholderTextColor={theme.colors.outline}
-                        value={note}
-                        onChangeText={setNote}
-                    />
+                    <ScrollView
+                        style={styles.optionsScroll}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={styles.optionsScrollContent}
+                    >
+                        <CategoryPicker
+                            type={type}
+                            selectedCategory={selectedCategory}
+                            onSelect={setSelectedCategory}
+                        />
+
+                        <View style={styles.detailsRow}>
+                            <TouchableOpacity
+                                style={styles.dateButton}
+                                onPress={() => setShowDatePicker(true)}
+                                activeOpacity={0.7}
+                            >
+                                <Calendar size={20} color="#6B7280" style={{ marginRight: 8 }} />
+                                <Text style={styles.dateText}>
+                                    {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </Text>
+                            </TouchableOpacity>
+
+                            <View style={styles.noteContainer}>
+                                <TextInput
+                                    style={styles.noteInput}
+                                    placeholder="Add a note..."
+                                    placeholderTextColor="#9CA3AF"
+                                    value={note}
+                                    onChangeText={setNote}
+                                    returnKeyType="done"
+                                    blurOnSubmit
+                                />
+                            </View>
+                        </View>
+
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={date}
+                                mode="date"
+                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                onChange={(event, selectedDate) => {
+                                    setShowDatePicker(Platform.OS === 'ios');
+                                    if (selectedDate) setDate(selectedDate);
+                                }}
+                            />
+                        )}
+                    </ScrollView>
 
                     {/* Save Button */}
                     <TouchableOpacity
-                        style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
+                        style={[
+                            styles.saveButton,
+                            (!amount || !selectedCategory) && styles.saveButtonDisabled
+                        ]}
                         onPress={handleSave}
+                        disabled={!amount || !selectedCategory}
+                        activeOpacity={0.8}
                     >
-                        <Text style={styles.saveButtonText}>Save Transaction</Text>
+                        <Text style={styles.saveButtonText}>
+                            Add {type === 'expense' ? 'Expense' : 'Income'}
+                        </Text>
                     </TouchableOpacity>
+
                 </BottomSheetView>
             </BottomSheet>
         );
@@ -179,59 +216,131 @@ const AddTransactionSheet = React.forwardRef<AddTransactionSheetHandle, AddTrans
 );
 
 const styles = StyleSheet.create({
-    container: { flex: 1, paddingHorizontal: 24, paddingTop: 16 },
+    container: {
+        flex: 1,
+        paddingHorizontal: 24,
+        paddingTop: 8,
+        backgroundColor: '#FFFFFF',
+    },
     typeToggle: {
         flexDirection: 'row',
-        backgroundColor: '#E8EDF2',
-        borderRadius: 12,
-        padding: 4,
-        marginBottom: 24,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 16,
+        padding: 6,
+        marginBottom: 16,
     },
     typeButton: {
         flex: 1,
-        paddingVertical: 12,
+        paddingVertical: 14,
         alignItems: 'center',
-        borderRadius: 10,
+        borderRadius: 12,
     },
     activeTypeButton: {
         backgroundColor: '#FFFFFF',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
         elevation: 2,
     },
-    typeText: { fontSize: 16, fontWeight: '600', color: '#5C6B7C' },
-    activeTypeText: { color: '#27313F' },
+    typeText: { fontSize: 15, fontWeight: '600', color: '#6B7280' },
+    activeTypeText: { color: '#111827', fontWeight: '700' },
+
+    amountContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 24,
+        paddingHorizontal: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+        paddingBottom: 12,
+    },
+    currencySymbol: {
+        fontSize: 32,
+        fontWeight: '800',
+        color: '#0F172A',
+        marginRight: 6,
+        lineHeight: 48,
+    },
     amountInput: {
         fontSize: 48,
-        fontWeight: '700',
+        fontWeight: '900',
+        color: '#0F172A',
+        letterSpacing: -1,
+        minWidth: 100,
+        padding: 0,
         textAlign: 'center',
-        marginBottom: 24,
-        color: '#27313F',
-        borderBottomWidth: 1,
-        borderColor: '#D1D9E4',
+    },
+
+    optionsScroll: {
+        flex: 1,
+    },
+    optionsScrollContent: {
         paddingBottom: 8,
     },
+    detailsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginTop: 8,
+    },
     dateButton: {
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderColor: '#D1D9E4',
-        marginBottom: 24,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F3F4F6',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    dateText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#111827',
+    },
+    noteContainer: {
+        flex: 1,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        height: 50,
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'transparent',
     },
     noteInput: {
-        fontSize: 16,
-        borderBottomWidth: 1,
-        borderColor: '#D1D9E4',
-        paddingVertical: 16,
-        marginBottom: 32,
+        fontSize: 15,
+        fontWeight: '500',
+        color: '#111827',
     },
+
     saveButton: {
-        borderRadius: 16,
+        backgroundColor: '#0F172A',
+        borderRadius: 24,
         paddingVertical: 18,
         alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 6,
+        marginBottom: 8,
+        marginTop: 8,
     },
-    saveButtonText: { color: 'white', fontSize: 18, fontWeight: '700' },
+    saveButtonDisabled: {
+        backgroundColor: '#E5E7EB',
+        shadowOpacity: 0,
+        elevation: 0,
+    },
+    saveButtonText: {
+        color: '#FFFFFF',
+        fontSize: 17,
+        fontWeight: '700',
+        letterSpacing: 0.5,
+    },
 });
 
 export default AddTransactionSheet;
