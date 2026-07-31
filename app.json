@@ -18,9 +18,16 @@
       "eas": {
         "projectId": "d33c9f47-b6b2-46b5-bfb1-1bfeba8742da"
       }
-    }
-
-    
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d33c9f47-b6b2-46b5-bfb1-1bfeba8742da"
+    },
+    "ios": {},
+    "plugins": [
+      "expo-mail-composer"
+    ]
   }
-  
 }

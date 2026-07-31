@@ -1,5 +1,4 @@
-import { getDatabase } from '../database';
-import { dbEvents } from '../utils/EventEmitter';
+﻿import { getDatabase } from '../database';
 
 export interface AccountRow {
     id: number;
@@ -25,9 +24,6 @@ export class AccountRepository {
         });
     }
 
-    // ... add other account methods later
-
-    // Reset all account balances to zero
     async resetBalances(): Promise<void> {
         const db = getDatabase();
         return new Promise((resolve, reject) => {
@@ -36,7 +32,6 @@ export class AccountRepository {
                     'UPDATE accounts SET balance = 0',
                     [],
                     () => {
-                        dbEvents.emit('accounts-changed');
                         resolve();
                     },
                     (_, error) => { reject(error); return false; }

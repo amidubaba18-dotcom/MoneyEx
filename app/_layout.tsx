@@ -6,7 +6,6 @@ import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useThemeMode } from '../context/ThemeContext';
 import { MoneyExLight, MoneyExDark } from '../theme';
 
-// Inner component that uses the theme context
 function AppContent() {
     const { isDark } = useThemeMode();
     const theme = isDark ? MoneyExDark : MoneyExLight;
@@ -16,9 +15,8 @@ function AppContent() {
             <StatusBar style={isDark ? 'light' : 'dark'} />
             <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="profile" options={{ presentation: 'modal', headerShown: false }} />
-                <Stack.Screen name="notifications" options={{ presentation: 'modal', headerShown: false }} />
-                <Stack.Screen name="appearance" options={{ presentation: 'modal', headerShown: false }} />
+                <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="+not-found" />
             </Stack>
         </PaperProvider>
     );
