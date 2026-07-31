@@ -23,7 +23,7 @@ import {
 } from 'lucide-react-native';
 import { useTransactionStore } from '../../store/useTransactionStore';
 import { useTabBarClearance } from './_layout';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useFormatCurrency } from '../../utils/formatCurrency';
 
 // ---------------------------------------------------------------------------
 // Minimal pass: one neutral accent, no rings/segments, generous whitespace,
@@ -58,12 +58,14 @@ const COLORS = {
   textMuted: '#8A8A87',
   hairline: 'rgba(242,242,240,0.08)',
   accent: '#F2F2F0',
+  textOuter: '#32CD32',
 };
 
 export default function SummaryScreen() {
   const router = useRouter();
   const transactions = useTransactionStore((s) => s.transactions);
   const tabBarClearance = useTabBarClearance();
+  const formatCurrency = useFormatCurrency();
 
   const now = new Date();
   const monthStart = startOfMonth(now);
@@ -212,12 +214,12 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '600',
     color: COLORS.textPrimary,
-    marginTop: 4,
+    marginTop: 18,
     marginBottom: 24,
   },
 
-  heroSection: { marginBottom: 40 },
-  heroMonth: { fontSize: 14, color: COLORS.textMuted, marginBottom: 4 },
+  heroSection: { marginBottom: 60, marginTop: 20, alignItems: 'center' },
+  heroMonth: { fontSize: 15, color: COLORS.textOuter, marginBottom: 4 },
   heroAmount: {
     fontSize: 38,
     fontWeight: '600',

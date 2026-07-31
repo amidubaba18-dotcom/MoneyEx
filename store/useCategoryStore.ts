@@ -4,15 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface CategoryItem {
     id: string;
     name: string;
-    icon: string; // key into ICON_LIBRARY (see utils/categoryIcons.tsx)
+    icon: string;
     color: string;
     isCustom: boolean;
 }
 
 const STORAGE_KEY = 'moneyex.customCategories';
 
-// The built-in set — same categories that were previously hardcoded directly
-// into AddExpenseScreen. Not user-editable/deletable, only extendable.
 export const DEFAULT_CATEGORIES: CategoryItem[] = [
     { id: 'food', name: 'Food', icon: 'Utensils', color: '#EF4444', isCustom: false },
     { id: 'groceries', name: 'Groceries', icon: 'ShoppingBag', color: '#22C55E', isCustom: false },
@@ -29,40 +27,56 @@ export const DEFAULT_CATEGORIES: CategoryItem[] = [
 
 interface CategoryState {
     customCategories: CategoryItem[];
+    isHydrated: boolean;
     addCategory: (cat: Omit<CategoryItem, 'id' | 'isCustom'>) => void;
     removeCategory: (id: string) => void;
 }
 
+// Tracks whether the user has mutated the store before hydration finished,
+// so the async storage read never overwrites a fresher in-memory add.
+let hasLocalChanges = false;
+
 export const useCategoryStore = create<CategoryState>((set, get) => ({
     customCategories: [],
+    isHydrated: false,
     addCategory: (cat) => {
+        hasLocalChanges = true;
         const newCat: CategoryItem = { ...cat, id: `custom_${Date.now()}`, isCustom: true };
         const next = [...get().customCategories, newCat];
         set({ customCategories: next });
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch((err) => {
+            console.error('Failed to persist category:', err);
+        });
     },
     removeCategory: (id) => {
+        hasLocalChanges = true;
         const next = get().customCategories.filter((c) => c.id !== id);
         set({ customCategories: next });
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch((err) => {
+            console.error('Failed to persist category removal:', err);
+        });
     },
 }));
 
-// Hydrate persisted custom categories once on app load.
+// Hydrate persisted custom categories once on app load — but never stomp
+// on a category the user already added while this read was in flight.
 AsyncStorage.getItem(STORAGE_KEY)
     .then((saved) => {
-        if (saved) {
+        if (saved && !hasLocalChanges) {
             try {
-                useCategoryStore.setState({ customCategories: JSON.parse(saved) });
-            } catch {
-                // corrupted storage — ignore, keep defaults only
+                useCategoryStore.setState({ customCategories: JSON.parse(saved), isHydrated: true });
+                return;
+            } catch (err) {
+                console.error('Corrupted category storage, ignoring:', err);
             }
         }
+        useCategoryStore.setState({ isHydrated: true });
     })
-    .catch(() => {});
+    .catch((err) => {
+        console.error('Failed to read category storage:', err);
+        useCategoryStore.setState({ isHydrated: true });
+    });
 
-// Convenience hook: defaults + custom, combined — what the category grid
-// (Settings, and eventually AddExpenseScreen) should actually render.
 export const useAllCategories = (): CategoryItem[] => {
     const custom = useCategoryStore((s) => s.customCategories);
     return [...DEFAULT_CATEGORIES, ...custom];

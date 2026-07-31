@@ -160,7 +160,7 @@ export default function SettingsScreen() {
                     {generalRows.map(renderRow)}
                 </View>
 
-                
+
 
                 <Text style={styles.versionText}>MoneyEx v3.17.3</Text>
             </ScrollView>
@@ -172,8 +172,11 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.bg },
     scrollContent: { paddingHorizontal: 24 },
     title: {
-        fontSize: 22, fontWeight: '600', color: COLORS.textPrimary,
-        marginTop: 4, marginBottom: 24,
+        fontSize: 22,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        marginTop: 18,
+        marginBottom: 24,
     },
     section: { marginBottom: 28 },
     sectionTitle: {

@@ -5,7 +5,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react-native';
 import { useTransactionStore } from '../../store/useTransactionStore';
 import { useTabBarClearance } from './_layout';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useFormatCurrency } from '../../utils/formatCurrency';
 
 // ---------------------------------------------------------------------------
 // Full redesign: hero card (total + MoM delta), SVG donut for category
@@ -34,10 +34,14 @@ const COLORS = {
     card: '#242424',
     positive: '#4ADE80',
     negative: '#F87171',
+    textOuter: '#32CD32',
+
 };
 
-const DonutChart = ({ slices, total, size = 176, strokeWidth = 22 }: {
+const DonutChart = ({ slices, total, size = 176, strokeWidth = 22, formatCurrency }: {
     slices: CategorySlice[]; total: number; size?: number; strokeWidth?: number;
+    formatCurrency: (amount: number) => string;
+
 }) => {
     const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
@@ -78,6 +82,7 @@ const DonutChart = ({ slices, total, size = 176, strokeWidth = 22 }: {
 export default function ReportsScreen() {
     const transactions = useTransactionStore((s) => s.transactions);
     const tabBarClearance = useTabBarClearance();
+    const formatCurrency = useFormatCurrency();
 
     const [viewedMonth, setViewedMonth] = useState(() => {
         const now = new Date();
@@ -157,7 +162,7 @@ export default function ReportsScreen() {
                     >
                         <ChevronLeft size={20} color={COLORS.textPrimary} strokeWidth={2} />
                     </Pressable>
-                    <Text style={[styles.monthLabel, { color: COLORS.textPrimary }]}>{monthLabel}</Text>
+                    <Text style={[styles.monthLabel, { color: COLORS.textOuter }]}>{monthLabel}</Text>
                     <Pressable
                         onPress={goToNextMonth}
                         hitSlop={12}
@@ -208,7 +213,7 @@ export default function ReportsScreen() {
                 {categoryBreakdown.length > 0 ? (
                     <>
                         <View style={styles.chartSection}>
-                            <DonutChart slices={categoryBreakdown} total={totalSpent} />
+                            <DonutChart slices={categoryBreakdown} total={totalSpent} formatCurrency={formatCurrency} />
                         </View>
 
                         <View style={styles.section}>
@@ -241,12 +246,19 @@ export default function ReportsScreen() {
 }
 
 const styles = StyleSheet.create({
+
     container: { flex: 1 },
     scrollContent: { paddingHorizontal: 24 },
-    title: { fontSize: 22, fontWeight: '600', marginTop: 4, marginBottom: 16 },
+    title: {
+        fontSize: 22,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        marginTop: 18,
+        marginBottom: 24,
+    },
 
-    monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20, marginBottom: 20 },
-    monthLabel: { fontSize: 15, fontWeight: '600', minWidth: 130, textAlign: 'center' },
+    monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 40 , marginTop: 20 },
+    monthLabel: { fontSize: 18, color: COLORS.textOuter, minWidth: 130, textAlign: 'center' },
 
     heroCard: {
         borderRadius: 20, padding: 20,

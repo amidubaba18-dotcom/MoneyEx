@@ -25,7 +25,7 @@ import {
 } from 'lucide-react-native';
 import { useTransactionStore } from '../../store/useTransactionStore';
 import { useTabBarClearance } from './_layout';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useFormatCurrency } from '../../utils/formatCurrency';
 
 // ---------------------------------------------------------------------------
 // Same design language as the Summary screen: dark neutral bg, one off-white
@@ -62,6 +62,7 @@ export default function ActivityScreen() {
     const router = useRouter();
     const transactions = useTransactionStore((s) => s.transactions);
     const tabBarClearance = useTabBarClearance();
+    const formatCurrency = useFormatCurrency();
 
     // Tracks which month is being viewed — defaults to the current month.
     const [viewedMonth, setViewedMonth] = useState(() => {
@@ -209,19 +210,26 @@ const COLORS = {
     textMuted: '#8A8A87',
     hairline: 'rgba(242,242,240,0.08)',
     accent: '#F2F2F0',
+    textOuter: '#32CD32',
+
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.bg },
     title: {
-        fontSize: 22, fontWeight: '600', color: COLORS.textPrimary,
-        marginTop: 4, marginBottom: 16, paddingHorizontal: 24,
+        fontSize: 22,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        marginTop: 18,
+        marginBottom: 24,
     },
     monthNav: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: 20, paddingBottom: 16,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 40, marginTop: 20
     },
-    monthLabel: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary, minWidth: 140, textAlign: 'center' },
+    monthLabel: {
+        fontSize: 18, color: COLORS.textOuter, minWidth: 130, textAlign: 'center'
+    },
+    monthLabel: { fontSize: 17, fontWeight: '600', color: COLORS.textOuter, minWidth: 140, textAlign: 'center' },
 
     listContent: { paddingHorizontal: 24 },
     emptyListContent: { flex: 1, justifyContent: 'center' },
